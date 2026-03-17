@@ -1,0 +1,14 @@
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Note: .data/ is NOT ignored - we track it for historical data
