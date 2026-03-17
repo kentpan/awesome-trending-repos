@@ -1,0 +1,29 @@
+{
+  "name": "awesome-trending-repos",
+  "version": "1.0.0",
+  "description": "A daily-updated, auto-curated list of the most awesome trending open-source repositories. Enriched with deep insights and historical data, powered by GitHub Actions.",
+  "type": "module",
+  "main": "src/update.js",
+  "scripts": {
+    "update": "node src/update.js",
+    "test": "node src/update.js --dry-run"
+  },
+  "keywords": [
+    "awesome-list",
+    "github-trending",
+    "open-source",
+    "automation",
+    "github-actions"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/plugin-throttling": "^11.0.3",
+    "axios": "^1.8.4",
+    "cheerio": "^1.0.0",
+    "octokit": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
