@@ -224,9 +224,48 @@ export async function searchTrendingRepos(options = {}) {
   return allRepos.sort((a, b) => b.stars - a.stars);
 }
 
+/**
+ * 批量获取用户头像
+ * @param {string[]} owners - GitHub 用户名数组
+ * @returns {Promise<Array>} - 返回包含用户名、头像地址或错误信息的对象数组
+ */
+export async function getBatchAvatars(owners) {
+  // 1. 初始化 Octokit
+  const octokit = getOctokit();
+
+  const results = await Promise.allSettled(
+    owners.map(owner => {
+      return octokit.rest.users.getByUsername({
+        username: owner
+      }).then(res => {
+        return {
+          owner,
+          avatar: res.data.avatar_url,
+          success: true,
+        };
+      }).catch(err => {
+        return {
+          owner,
+          error: err.message,
+          success: false,
+        };
+      });
+    })
+  );
+
+  const avatars = {};
+  results.map(result => {
+    if (result.status === "fulfilled") {
+      avatars[result.value.owner] = result.value.avatar;
+    }
+  });
+  return avatars;
+}
+
 export default {
   searchGitHubRepos,
   fetchRepoDetails,
   batchFetchRepoDetails,
-  searchTrendingRepos
+  searchTrendingRepos,
+  getBatchAvatars
 };
