@@ -2,8 +2,8 @@ name: Update and Deploy Trends
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 40 * * *' # 每天0:40运行
+  # workflow_dispatch:
   push:
     branches:
       - main
@@ -12,7 +12,7 @@ on:
       - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
-      - '.github/workflows/update-trends.yml'
+      # - '.github/workflows/update-trends.yml'
 
 # Permissions for GitHub Pages
 permissions:
@@ -50,8 +50,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Build frontend
-      #   run: npm run build
+      - name: Build frontend
+        run: npm run build
 
       - name: Check for changes
         id: verify
