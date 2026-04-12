@@ -11,6 +11,7 @@ import { promises as fs } from 'fs';
 import { resolve } from 'path';
 import { fetchTrendingWithEnrichment } from './data-sources/github-trending.js';
 import { searchTrendingRepos as searchGitHubTrending } from './data-sources/github-search.js';
+import { getUsersAvatar } from './data-sources/github-avatar.js';
 import * as utils from './utils.js';
 import { CONFIG, TRENDING_LANGUAGES } from './config.js';
 
@@ -271,6 +272,15 @@ async function main() {
     console.log(`✂️ Limiting to top ${CONFIG.maxRepos} repositories...`);
     repos = repos.slice(0, CONFIG.maxRepos);
     console.log(`  ✅ Retained ${repos.length} repositories\n`);
+
+    // merge user avatar
+    const owners = [...new Set(repos.map(r => r.owner))];
+    const avatars = await getUsersAvatar(owners);
+    repos = repos.map(repo => ({
+      ...repo,
+      avatar: avatars[repo.owner] || null
+    }));
+    console.log('  ✅ Merged user avatars\n');
 
     // Step 7: Compare with historical data
     let historicalComparison = null;
