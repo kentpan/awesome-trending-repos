@@ -106,6 +106,7 @@ export async function fetchRepositoryStats(owner, repo) {
     });
 
     return {
+      avatar: response.data.owner.avatar_url || null,
       openIssues: response.data.open_issues_count || 0,
       forks: response.data.forks_count || 0,
       watchers: response.data.subscribers_count || 0,

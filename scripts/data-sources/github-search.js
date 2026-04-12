@@ -101,6 +101,7 @@ function normalizeGitHubRepo(item) {
   return {
     owner: item.owner.login,
     name: item.name,
+    avatar: item.owner.avatar_url,
     description: item.description || '',
     language: item.language || 'Unknown',
     stars: item.stargazers_count,
@@ -137,6 +138,7 @@ export async function fetchRepoDetails(owner, repo) {
     return {
       owner: response.data.owner.login,
       name: response.data.name,
+      avatar: response.data.owner.avatar_url,
       description: response.data.description || '',
       language: response.data.language || 'Unknown',
       stars: response.data.stargazers_count,
