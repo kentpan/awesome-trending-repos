@@ -10,8 +10,7 @@
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
 import { fetchTrendingWithEnrichment } from './data-sources/github-trending.js';
-import { searchTrendingRepos as searchGitHubTrending } from './data-sources/github-search.js';
-import { getUsersAvatar } from './data-sources/github-avatar.js';
+import { searchTrendingRepos as searchGitHubTrending, getBatchAvatars } from './data-sources/github-search.js';
 import * as utils from './utils.js';
 import { CONFIG, TRENDING_LANGUAGES } from './config.js';
 
@@ -275,12 +274,12 @@ async function main() {
 
     // merge user avatar
     const owners = [...new Set(repos.map(r => r.owner))];
-    const avatars = await getUsersAvatar(owners);
+    const avatars = await getBatchAvatars(owners);
     repos = repos.map(repo => ({
       ...repo,
       avatar: avatars[repo.owner] || null
     }));
-    console.log('  ✅ Merged user avatars\n');
+    console.log('  ✅ Merged user avatars\n', avatars);
 
     // Step 7: Compare with historical data
     let historicalComparison = null;
