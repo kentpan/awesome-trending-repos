@@ -2,7 +2,7 @@ name: Update and Deploy Trends
 
 on:
   schedule:
-    - cron: '40 0 * * *' # 每天0:40运行
+    - cron: '45 16 * * *' # 每天0:40运行
   # workflow_dispatch:
   push:
     branches:
