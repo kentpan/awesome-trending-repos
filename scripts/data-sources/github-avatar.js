@@ -94,7 +94,7 @@ async function fetchBatchAvatars(owners, concurrency = 5) {
  * @param {*} batchSize 
  * @returns Object - { username: avatarUrl }
  */
-async function getUsersAvatar(owners, batchSize = 5) {
+export async function getUsersAvatar(owners, batchSize = 5) {
   const results = await fetchBatchAvatars(owners, batchSize);
   const avatars = results.reduce((acc, cur) => {
     if (cur.success) {
@@ -105,4 +105,6 @@ async function getUsersAvatar(owners, batchSize = 5) {
   return avatars;
 }
 
-export default { fetchBatchAvatars, getUsersAvatar };
+export default {
+  getUsersAvatar
+};
