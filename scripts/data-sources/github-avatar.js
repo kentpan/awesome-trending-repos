@@ -1,4 +1,4 @@
-import { Octokit } from "@octokit/rest";
+import { Octokit } from 'octokit';
 import pLimit from "p-limit";
 
 // Create Octokit with throttling and retry
