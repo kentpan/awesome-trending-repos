@@ -277,7 +277,7 @@ async function main() {
     const avatars = await getBatchAvatars(owners);
     repos = repos.map(repo => ({
       ...repo,
-      avatar: avatars[repo.owner] || null
+      ...avatars[repo.owner] || {}
     }));
     console.log('  ✅ Merged user avatars\n', avatars);
 
