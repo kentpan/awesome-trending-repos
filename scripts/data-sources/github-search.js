@@ -240,7 +240,6 @@ export async function getBatchAvatars(owners) {
       }).then(res => {
         return {
           owner,
-          branch: res.data.default_branch,
           avatar: res.data.avatar_url,
           success: true,
         };
@@ -257,10 +256,7 @@ export async function getBatchAvatars(owners) {
   const avatars = {};
   results.map(result => {
     if (result.status === "fulfilled") {
-      avatars[result.value.owner] = {
-        avatar: result.value.avatar,
-        branch: result.value.branch
-      };
+      avatars[result.value.owner] = result.value.avatar;
     }
   });
   return avatars;

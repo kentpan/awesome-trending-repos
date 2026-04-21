@@ -277,12 +277,12 @@ async function main() {
     const avatars = await getBatchAvatars(owners);
     repos = repos.map(repo => ({
       ...repo,
-      ...avatars[repo.owner] || {}
+      avatar: avatars[repo.owner] || ''
     }));
-    console.log('  ✅ Merged user avatars&branch\n', avatars);
+    console.log('  ✅ Merged user avatars\n', avatars);
 
     // Step 8: Push to Pusher
-    const pusherApis = env.PUSHER_APIS ? env.PUSHER_APIS.split(',').map(api => api.trim()) : PUSHER_APIS;
+    const pusherApis = process.env.PUSHER_APIS ? process.env.PUSHER_APIS.split(',').map(api => api.trim()) : PUSHER_APIS;
     if (pusherApis.length > 0) {
       pusherTrending(repos, pusherApis);
     }
