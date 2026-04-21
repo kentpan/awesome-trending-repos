@@ -284,6 +284,7 @@ async function main() {
     // Step 8: Push to Pusher
     const pusherApis = process.env.PUSHER_APIS ? process.env.PUSHER_APIS.split(',').map(api => api.trim()) : PUSHER_APIS;
     if (pusherApis.length > 0) {
+      console.log('🚀 Pushing to Pusher...', pusherApis.join(', '))
       pusherTrending(repos, pusherApis);
     }
 

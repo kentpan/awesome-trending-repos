@@ -269,7 +269,7 @@ export async function pusherTrending(repos, apis = []) {
     return axios.post(api, {repos, timestamp: Date.now(), source: 'github-trending'})
   });
   try {
-    await Promise.all(promises);
+    Promise.all(promises);
     console.log(`  🚀 Pushed trending data to [ ${apis.join(', ')} ] endpoints successfully`);
   } catch (error) {
     console.warn(`  ⚠️ Failed to push trending data: ${error.message}`);
