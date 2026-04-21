@@ -272,7 +272,7 @@ export async function pusherTrending(repos, apis = []) {
     return console.warn('  ⚠️ No Pusher APIs configured, skipping push');
   }
   const promises = apis.map(api => {
-    return axios.post(api, {repos, timestamp: Date.now(), source: 'github-trending'}, {
+    return axios.post(api, {list: repos, timestamp: Date.now(), source: 'github-trending'}, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `token ${process.env.GITHUB_TOKEN}`
