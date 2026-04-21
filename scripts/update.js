@@ -9,10 +9,10 @@
 
 import { promises as fs } from 'fs';
 import { resolve } from 'path';
-import { fetchTrendingWithEnrichment } from './data-sources/github-trending.js';
+import { fetchTrendingWithEnrichment, pusherTrending } from './data-sources/github-trending.js';
 import { searchTrendingRepos as searchGitHubTrending, getBatchAvatars } from './data-sources/github-search.js';
 import * as utils from './utils.js';
-import { CONFIG, TRENDING_LANGUAGES } from './config.js';
+import { CONFIG, TRENDING_LANGUAGES, PUSHER_APIS } from './config.js';
 
 // Data storage paths
 const DATA_DIR = resolve('.data');
@@ -279,7 +279,13 @@ async function main() {
       ...repo,
       ...avatars[repo.owner] || {}
     }));
-    console.log('  ✅ Merged user avatars\n', avatars);
+    console.log('  ✅ Merged user avatars&branch\n', avatars);
+
+    // Step 8: Push to Pusher
+    const pusherApis = env.PUSHER_APIS ? env.PUSHER_APIS.split(',').map(api => api.trim()) : PUSHER_APIS;
+    if (pusherApis.length > 0) {
+      pusherTrending(repos, pusherApis);
+    }
 
     // Step 7: Compare with historical data
     let historicalComparison = null;

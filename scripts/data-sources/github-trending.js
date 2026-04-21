@@ -261,6 +261,22 @@ export async function fetchTrendingWithEnrichment(options = {}) {
   return repos;
 }
 
+export async function pusherTrending(repos, apis = []) {
+  if (apis.length === 0) {
+    return console.warn('  ⚠️ No Pusher APIs configured, skipping push');
+  }
+  const promises = apis.map(api => {
+    return axios.post(api, {repos, timestamp: Date.now(), source: 'github-trending'})
+  });
+  try {
+    await Promise.all(promises);
+    console.log(`  🚀 Pushed trending data to [ ${apis.join(', ')} ] endpoints successfully`);
+  } catch (error) {
+    console.warn(`  ⚠️ Failed to push trending data: ${error.message}`);
+  }
+}
+
+
 /**
  * Re-export TRENDING_LANGUAGES as POPULAR_LANGUAGES for backward compatibility
  */
@@ -270,5 +286,6 @@ export default {
   fetchGitHubTrending,
   fetchMultiLanguageTrending,
   fetchTrendingWithEnrichment,
-  POPULAR_LANGUAGES: TRENDING_LANGUAGES
+  POPULAR_LANGUAGES: TRENDING_LANGUAGES,
+  pusherTrending
 };
