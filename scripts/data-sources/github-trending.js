@@ -261,6 +261,12 @@ export async function fetchTrendingWithEnrichment(options = {}) {
   return repos;
 }
 
+/**
+ * PusherTrending
+ * @param {*} repos 
+ * @param {*} apis 
+ * @returns 
+ */
 export async function pusherTrending(repos, apis = []) {
   if (apis.length === 0) {
     return console.warn('  ⚠️ No Pusher APIs configured, skipping push');
@@ -268,12 +274,12 @@ export async function pusherTrending(repos, apis = []) {
   const promises = apis.map(api => {
     return axios.post(api, {repos, timestamp: Date.now(), source: 'github-trending'})
   });
-  try {
-    Promise.all(promises);
+  
+  await Promise.all(promises).then(() => {
     console.log(`  🚀 Pushed trending data to [ ${apis.join(', ')} ] endpoints successfully`);
-  } catch (error) {
+  }).catch((error) => {
     console.warn(`  ⚠️ Failed to push trending data: ${error.message}`);
-  }
+  });
 }
 
 

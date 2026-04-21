@@ -127,6 +127,6 @@ export const TRENDING_LANGUAGES = [
 
 export const PUSHER_APIS = [
   'https://github.xubaoge.com/api/trending/pusherCallback',
-]
+];
 
 export default CONFIG;

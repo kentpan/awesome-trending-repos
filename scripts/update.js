@@ -285,7 +285,7 @@ async function main() {
     const pusherApis = process.env.PUSHER_APIS ? process.env.PUSHER_APIS.split(',').map(api => api.trim()) : PUSHER_APIS;
     if (pusherApis.length > 0) {
       console.log('🚀 Pushing to Pusher...', pusherApis.join(', '))
-      pusherTrending(repos, pusherApis);
+      await pusherTrending(repos, pusherApis);
     }
 
     // Step 7: Compare with historical data
