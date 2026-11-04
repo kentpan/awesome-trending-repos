@@ -10,5 +10,5 @@ Thumbs.db
 *.swp
 *.swo
 *~
-
+*.zip
 # Note: .data/ is NOT ignored - we track it for historical data

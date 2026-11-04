@@ -22,6 +22,23 @@ const PUBLIC_DATA_DIR = resolve('public', 'data');
 const TRENDING_JSON = resolve(PUBLIC_DATA_DIR, 'trending.json');
 const FEED_JSON = resolve(PUBLIC_DATA_DIR, 'feed.json');
 
+// CLI 参数: --dry-run 只抓取和校验, 不写文件、不推送
+const CLI_ARGS = new Set(process.argv.slice(2));
+const DRY_RUN = CLI_ARGS.has('--dry-run');
+const SKIP_PUSH = CLI_ARGS.has('--no-push') || process.env.SKIP_PUSH === '1';
+// 抓取不到足够"当日新数据"时的底线, 低于该值直接报错而不是拿历史数据凑数
+const MIN_FRESH_REPOS = Number(process.env.MIN_FRESH_REPOS || 3);
+
+const SNAPSHOT_FILE_RE = /^(\d{4})-(\d{2})-(\d{2})\.json$/;
+
+/**
+ * 输出 GitHub Actions 注解, 让警告/错误在 Actions 页面直接可见
+ */
+function annotate(type, message) {
+  const line = type === 'error' ? `::error::${message}` : `::warning::${message}`;
+  console.log(line);
+}
+
 /**
  * Update deployment feed
  */
@@ -93,11 +110,23 @@ async function saveHistory(history) {
 }
 
 /**
+ * 生成快照文件名用的日期 key (YYYY-MM-DD)
+ *
+ * 统一按站点所在时区 UTC+8 计算, 否则本地晚上跑脚本会写成"昨天"的文件名
+ * (toISOString 是 UTC, 北京时间 03:00 会被算成前一天)。
+ * CI 里是 00:01 UTC = 08:01 CST, 两种算法结果一致, 不影响历史文件名。
+ */
+function toDateKey(date = new Date()) {
+  const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return beijing.toISOString().slice(0, 10);
+}
+
+/**
  * Save daily snapshot
  */
 async function saveSnapshot(repos, date) {
   await ensureDataDir();
-  const filename = `${date.toISOString().split('T')[0]}.json`;
+  const filename = `${toDateKey(date)}.json`;
   const filepath = resolve(SNAPSHOT_DIR, filename);
   await fs.writeFile(filepath, JSON.stringify(repos, null, 2), 'utf-8');
 }
@@ -106,7 +135,7 @@ async function saveSnapshot(repos, date) {
  * Load snapshot for a specific date
  */
 async function loadSnapshot(date) {
-  const filename = `${date.toISOString().split('T')[0]}.json`;
+  const filename = `${toDateKey(date)}.json`;
   const filepath = resolve(SNAPSHOT_DIR, filename);
   try {
     const content = await fs.readFile(filepath, 'utf-8');
@@ -118,23 +147,41 @@ async function loadSnapshot(date) {
 
 /**
  * Clean up old snapshots
+ *
+ * 必须按"文件名里的日期"判断, 不能用 mtime。
+ * 之前用 stats.mtime, 在任何非 checkout 环境(本地拉代码、解压 zip)下跑一次,
+ * 就会把 .data/snapshots 里所有快照全部删掉(本次事故: 本地 44 个快照被清空)。
  */
 async function cleanupOldSnapshots() {
   try {
+    const retentionDays = CONFIG.snapshotRetentionDays || 0;
+    // 0 / 负数 = 不清理, 历史快照全部保留
+    if (retentionDays <= 0) return;
+
     const files = await fs.readdir(SNAPSHOT_DIR);
-    const now = new Date();
+    const now = Date.now();
+    const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000;
+    let removed = 0;
 
     for (const file of files) {
-      const filepath = resolve(SNAPSHOT_DIR, file);
-      const stats = await fs.stat(filepath);
-      const daysSinceModified = (now - stats.mtime) / (1000 * 60 * 60 * 24);
+      const matched = SNAPSHOT_FILE_RE.exec(file);
+      // 只处理规范的日期文件, 其它文件一律不碰
+      if (!matched) continue;
 
-      if (daysSinceModified > CONFIG.historyDays) {
-        await fs.unlink(filepath);
+      const fileTime = Date.UTC(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]));
+      if (!Number.isFinite(fileTime)) continue;
+
+      if (now - fileTime > maxAgeMs) {
+        await fs.unlink(resolve(SNAPSHOT_DIR, file));
+        removed++;
       }
     }
+
+    if (removed) {
+      console.log(`  🧹 清理过期快照 ${removed} 个 (保留最近 ${retentionDays} 天)`);
+    }
   } catch (error) {
-    console.warn('  ⚠️ Could not clean up old snapshots');
+    console.warn(`  ⚠️ Could not clean up old snapshots: ${error.message}`);
   }
 }
 
@@ -176,8 +223,15 @@ async function main() {
 
     // Primary: GitHub trending page scraping
     console.log('  Using GitHub trending page scraping...');
-    repos = await fetchTrendingWithEnrichment({ languages: TRENDING_LANGUAGES });
-    dataSource = 'GitHub Trending';
+    try {
+      repos = await fetchTrendingWithEnrichment({ languages: TRENDING_LANGUAGES });
+      dataSource = 'GitHub Trending';
+    } catch (error) {
+      // 抓取整体失败时不能直接退出, 后面还有 Search API 兜底
+      console.error(`  ❌ GitHub Trending 抓取失败: ${error.message}`);
+      repos = [];
+      dataSource = 'GitHub Trending(抓取失败)';
+    }
 
     // Supplement with GitHub Search API if needed
     if (repos.length < CONFIG.maxRepos && CONFIG.fallbackToSearch) {
@@ -216,7 +270,7 @@ async function main() {
     }
 
     if (repos.length === 0) {
-      throw new Error('No repositories found from any data source');
+      throw new Error('抓取失败: GitHub Trending 与 Search API 都没有返回任何仓库, 请检查网络 / GITHUB_TOKEN / GitHub 是否限流');
     }
 
     console.log(`  ✅ Found ${repos.length} repositories from ${dataSource}\n`);
@@ -225,6 +279,9 @@ async function main() {
     console.log('🔍 Validating repository data...');
     const validation = utils.filterValidRepos(repos);
     repos = validation.valid;
+    if (validation.invalid > 0) {
+      console.log(`  ⚠️ 丢弃 ${validation.invalid} 个字段不完整的仓库`);
+    }
     console.log(`  ✅ ${repos.length} valid repositories\n`);
 
     // Step 3: Filter by popular languages
@@ -232,6 +289,15 @@ async function main() {
       console.log('🏷️ Filtering by popular languages...');
       repos = utils.filterPopularLanguages(repos);
       console.log(`  ✅ ${repos.length} repositories after filtering\n`);
+    }
+
+    // 当日真实数据量校验: 低于底线直接报错, 绝不能悄悄用历史数据顶上
+    const freshCount = repos.length;
+    if (freshCount < MIN_FRESH_REPOS) {
+      throw new Error(
+        `抓取数据不足: 只拿到 ${freshCount} 个有效仓库 (下限 ${MIN_FRESH_REPOS} 个), ` +
+        '大概率是 GitHub 抓取失败或被限流。已中止本次更新, 避免把历史数据当成今日数据写入。'
+      );
     }
 
     // Step 4: Augment with historical data if needed
@@ -262,7 +328,9 @@ async function main() {
 
       historicalRepos.sort((a, b) => b.stars - a.stars);
       repos = [...repos, ...historicalRepos.slice(0, CONFIG.maxRepos - repos.length)];
-      console.log(`  ✅ Augmented to ${repos.length} repositories\n`);
+      console.log(`  ✅ Augmented to ${repos.length} repositories (其中 ${repos.length - freshCount} 条为历史补全)`);
+      annotate('warning', `今日仅抓到 ${freshCount} 条新数据, 有 ${repos.length - freshCount} 条为历史补全`);
+      console.log('');
     }
 
     // Step 5: Enrichment - Skipped as requested (focus on Top Repos)
@@ -277,16 +345,9 @@ async function main() {
     const avatars = await getBatchAvatars(owners);
     repos = repos.map(repo => ({
       ...repo,
-      avatar: avatars[repo.owner] || ''
+      avatar: avatars[repo.owner] || repo.avatar || ''
     }));
-    console.log('  ✅ Merged user avatars\n', avatars);
-
-    // Step 8: Push to Pusher
-    const pusherApis = process.env.PUSHER_APIS ? process.env.PUSHER_APIS.split(',').map(api => api.trim()) : PUSHER_APIS;
-    if (pusherApis.length > 0) {
-      console.log('🚀 Pushing to Pusher...', pusherApis.join(', '))
-      await pusherTrending(repos, pusherApis);
-    }
+    console.log(`  ✅ Merged user avatars (${Object.keys(avatars).length}/${owners.length})\n`);
 
     // Step 7: Compare with historical data
     let historicalComparison = null;
@@ -314,36 +375,62 @@ async function main() {
         totalStars: insights.totalStars
       }
     };
-    await saveSnapshot(repos, now);
 
-    // Update history
-    history.snapshots.unshift(snapshot);
-    history.lastUpdate = now.toISOString();
+    if (DRY_RUN) {
+      console.log('  🧪 --dry-run 模式: 跳过写文件与推送');
+      console.log(`  即将写入: .data/snapshots/${toDateKey(now)}.json (${repos.length} 条)`);
+    } else {
+      await saveSnapshot(repos, now);
 
-    // Keep only recent history in memory file
-    history.snapshots = history.snapshots.slice(0, CONFIG.historyDays);
-    await saveHistory(history);
-    await cleanupOldSnapshots();
-    
-    // Save for frontend
-    console.log('🌐 Saving public data for frontend...');
-    await fs.writeFile(TRENDING_JSON, JSON.stringify(snapshot, null, 2), 'utf-8');
-    await updateFeed(snapshot);
-    
-    console.log('  ✅ Snapshot saved\n');
+      // Update history
+      history.snapshots.unshift(snapshot);
+      history.lastUpdate = now.toISOString();
 
-    // Step 10: Summary
+      // Keep only recent history in memory file
+      history.snapshots = history.snapshots.slice(0, CONFIG.historyDays);
+      await saveHistory(history);
+      await cleanupOldSnapshots();
+
+      // Save for frontend
+      console.log('🌐 Saving public data for frontend...');
+      await fs.writeFile(TRENDING_JSON, JSON.stringify(snapshot, null, 2), 'utf-8');
+      await updateFeed(snapshot);
+
+      console.log('  ✅ Snapshot saved\n');
+    }
+
+    // Step 10: Push to Pusher (放在落盘之后, 推送失败不会丢数据)
+    let pushResult = { ok: false, skipped: true, results: [] };
+    const pusherApis = process.env.PUSHER_APIS
+      ? process.env.PUSHER_APIS.split(',').map(api => api.trim()).filter(Boolean)
+      : PUSHER_APIS;
+
+    if (DRY_RUN || SKIP_PUSH) {
+      console.log('🚀 跳过推送 (dry-run / SKIP_PUSH)');
+    } else if (pusherApis.length > 0) {
+      console.log('🚀 Pushing to Pusher...', pusherApis.join(', '));
+      pushResult = { ...(await pusherTrending(repos, pusherApis)), skipped: false };
+      if (!pushResult.ok) {
+        annotate('error', `榜单数据推送站点失败: ${pushResult.results.map(r => `${r.api} => ${r.error}`).join(' | ')}`);
+      }
+    }
+
+    // Step 11: Summary
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log('✨ Update completed successfully!');
     console.log(`⏱️ Elapsed time: ${elapsed}s`);
-    console.log(`📦 Repositories processed: ${repos.length}`);
-    console.log(`📝 public/data/trending.json updated`);
+    console.log(`📦 Repositories processed: ${repos.length} (当日新数据 ${freshCount} 条)`);
+    console.log(`🚀 Push: ${pushResult.skipped ? 'skipped' : (pushResult.ok ? 'ok' : 'failed')}`);
+    if (!DRY_RUN) console.log(`📝 public/data/trending.json updated`);
 
     return {
       success: true,
       reposCount: repos.length,
+      freshCount,
       dataSource,
       elapsed,
+      pushOk: pushResult.ok,
+      pushSkipped: pushResult.skipped,
       historicalComparison
     };
 

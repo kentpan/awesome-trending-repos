@@ -4,11 +4,10 @@
  */
 
 import { Octokit } from 'octokit';
-import { throttling } from '@octokit/plugin-throttling';
-import { retry } from '@octokit/plugin-retry';
 
-// Create Octokit with throttling and retry
-const MyOctokit = Octokit.plugin(throttling, retry);
+// octokit 包已内置挂载 throttling / retry 插件,
+// 之前单独 import @octokit/plugin-retry 在 pnpm 严格 node_modules 下无法解析, 会直接 ERR_MODULE_NOT_FOUND
+const MyOctokit = Octokit;
 
 /**
  * Initialize Octokit instance with retry and throttling
@@ -64,17 +63,20 @@ export async function searchGitHubRepos(options = {}) {
     language = '',
     sort = 'stars',
     order = 'desc',
-    perPage = 50
+    perPage = 50,
+    minStars = 1000,
+    activeDays = 7
   } = options;
 
   const octokit = getOctokit();
 
-  // Build search query for repositories created in the last 7 days
-  const date = getDateSuffix(7);
-  let query = `created:>${date}`;
+  // 只取"最近仍在活跃 + 星标足够"的仓库。
+  // 原来用 created:>date 只会捞到刚创建的新仓库(星标极少), 完全不像热榜。
+  const date = getDateSuffix(activeDays);
+  let query = `stars:>=${minStars} pushed:>${date}`;
 
   if (language) {
-    query += `+language:${language}`;
+    query += ` language:${language}`;
   }
 
   try {
@@ -96,24 +98,38 @@ export async function searchGitHubRepos(options = {}) {
 
 /**
  * Normalize GitHub API response to match our data structure
+ *
+ * 注意: 必须输出 name / stars / forks 这几个规范字段。
+ * 之前只输出 repo / stargazers_count / forks_count, 下游 filterValidRepos
+ * 要求 `r.name && typeof r.stars === 'number'`, 导致 Search 兜底数据 100% 被判无效,
+ * 抓取失败时会静默退化成"全部使用历史数据"。
  */
 function normalizeGitHubRepo(item) {
+  const stars = Number(item.stargazers_count) || 0;
+  const forks = Number(item.forks_count) || 0;
+  const name = item.name || '';
+
   return {
-    owner: item.owner.login,
-    name: item.name,
-    avatar: item.owner.avatar_url,
+    id: item.id,
+    owner: item.owner?.login || '',
+    name,                       // 规范字段
+    repo: name,                 // 兼容字段
+    avatar: item.owner?.avatar_url || '',
+    url: item.html_url || '',
+    default_branch: item.default_branch,
     description: item.description || '',
-    language: item.language || 'Unknown',
-    stars: item.stargazers_count,
-    forks: item.forks_count,
-    growth: 0, // Not available from search API
-    starsToday: 0,
-    rank: 0,
-    url: item.html_url,
+    language: item.language || '',   // 注意: 用空串而非 'Unknown', 否则会被热门语言过滤器丢弃
+    stars,
+    forks,
+    stargazers_count: stars,    // 兼容字段
+    forks_count: forks,         // 兼容字段
+    openIssues: item.open_issues_count || 0,
+    homepage: item.homepage || '',
+    size: item.size || 0,
+    license: item.license ? item.license.spdx_id : 'NOT',
     createdAt: item.created_at,
     updatedAt: item.updated_at,
     pushedAt: item.pushed_at,
-    openIssues: item.open_issues_count,
     fetchedAt: new Date().toISOString(),
     source: 'github-search'
   };

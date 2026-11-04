@@ -62,6 +62,10 @@ export const CONFIG = {
   // Data collection settings
   maxRepos: 25,  // Top 25 repos is enough - cleaner and faster
   historyDays: 7,
+  // 快照文件保留天数(按文件名日期计算, 不按 mtime)。
+  // 0 = 永久保留。站点会按日期回读 .data/snapshots/YYYY-MM-DD.json,
+  // 删掉就等于丢掉历史榜单, 单文件才 13KB, 没必要清。
+  snapshotRetentionDays: 0,
   fallbackToSearch: true,
   filterLanguages: true,
 
@@ -128,5 +132,12 @@ export const TRENDING_LANGUAGES = [
 export const PUSHER_APIS = [
   'https://github.xubaoge.com/api/trending/pusherCallback',
 ];
+
+/**
+ * 站点地址, 用于更新后做一次"数据是否真的落地"的验证
+ * 注意: 必须用 www 域名 —— 裸域 xubaoge.com 前置了 Cloudflare 人机校验,
+ * 非浏览器客户端(含 GitHub Actions)会被 403 "Just a moment..." 拦截
+ */
+export const SITE_BASE_URL = process.env.SITE_BASE_URL || 'https://www.xubaoge.com';
 
 export default CONFIG;

@@ -4,11 +4,10 @@
  */
 
 import { Octokit } from 'octokit';
-import { throttling } from '@octokit/plugin-throttling';
-import { retry } from '@octokit/plugin-retry';
 
-// Create Octokit with throttling and retry
-const MyOctokit = Octokit.plugin(throttling, retry);
+// octokit 包已内置挂载 throttling / retry 插件, 无需单独 import
+// (单独 import @octokit/plugin-retry 在 pnpm 严格 node_modules 下会 ERR_MODULE_NOT_FOUND)
+const MyOctokit = Octokit;
 
 /**
  * Initialize Octokit instance with retry and throttling

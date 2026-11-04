@@ -9,6 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "update": "node scripts/update.js",
+    "update:dry": "node scripts/update.js --dry-run",
+    "verify": "node scripts/verify-site.js",
     "test": "node scripts/update.js --dry-run"
   },
   "keywords": [

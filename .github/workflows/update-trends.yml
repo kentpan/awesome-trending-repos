@@ -28,6 +28,7 @@ concurrency:
 jobs:
   update-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,16 +40,25 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "::warning::缺少 package-lock.json, 退化为 npm install"
+            npm install
+          fi
 
       - name: Run update script
         id: update
         run: npm run update
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 可选: 直连 github.com 不稳定时走自建代理抓取 trending 页面
+          # GITHUB_TRENDING_PROXY: https://github.xubaoge.com
+          # 可选: 覆盖推送地址(多个用逗号分隔)
+          # PUSHER_APIS: https://github.xubaoge.com/api/trending/pusherCallback
 
       - name: Build frontend
         run: npm run build
@@ -56,10 +66,12 @@ jobs:
       - name: Check for changes
         id: verify
         run: |
-          if git diff --quiet README.md .data/ public/data/trending.json; then
+          # 用 git status 而不是 git diff: 新增的快照文件是 untracked, git diff 看不到
+          if [ -z "$(git status --porcelain -- .data public/data README.md)" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
+            git status --porcelain -- .data public/data README.md
           fi
 
       - name: Configure Git
@@ -71,8 +83,10 @@ jobs:
       - name: Commit and push data changes
         if: steps.verify.outputs.changed == 'true'
         run: |
-          git add README.md .data/ public/data/trending.json
-          git commit -m "chore: update trending repositories [skip ci]"
+          git add -A .data public/data
+          # README 存在时才加, 避免路径不存在导致 git add 报错
+          [ -f README.md ] && git add README.md || true
+          git commit -m "chore: update trending repositories $(date -u +%Y-%m-%d) [skip ci]"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -81,6 +95,11 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
+
+      # 端到端验证: 确认站点接口真的拿到了今天的数据
+      # 推送失败(Cloudflare 拦截 / worker 转发失败 / 后端报错)以前只会打 warn, 工作流照样是绿的
+      - name: Verify site data
+        run: npm run verify
 
   # deploy:
   #   environment:
