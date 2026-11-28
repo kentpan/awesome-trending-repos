@@ -1,5 +1,12 @@
 [
   {
+    "id": "1795845531574",
+    "date": "2026-11-28T05:58:49.016Z",
+    "title": "Daily Update: 25 repos curated",
+    "summary": "Top languages today: Python, TypeScript, Shell, JavaScript, C++. Rising star: Claude-BugHunter.",
+    "type": "update"
+  },
+  {
     "id": "1795760525553",
     "date": "2026-11-27T06:22:02.898Z",
     "title": "Daily Update: 25 repos curated",
@@ -130,13 +137,6 @@
     "date": "2026-11-09T04:16:21.015Z",
     "title": "Daily Update: 25 repos curated",
     "summary": "Top languages today: Rust, TypeScript, Python, JavaScript, Shell. Rising star: sherlock.",
-    "type": "update"
-  },
-  {
-    "id": "1794110390960",
-    "date": "2026-11-08T03:59:48.290Z",
-    "title": "Daily Update: 25 repos curated",
-    "summary": "Top languages today: TypeScript, Python, Rust, Shell, JavaScript. Rising star: rea.",
     "type": "update"
   }
 ]
